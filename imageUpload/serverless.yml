@@ -27,17 +27,20 @@ provider:
 
 # you can overwrite defaults here
 #  stage: dev
-#  region: us-east-1
+ region: eu-west-1
+ environment:
+    AUTH0_CLIENT_ID: ${file(./secrets.json):AUTH0_CLIENT_ID}
+    AUTH0_CLIENT_PUBLIC_KEY: ${file(./public_key)}
 
 # you can add statements to the Lambda function's IAM Role here
  iamRoleStatements:
    - Effect: "Allow"
      Action:
        - "s3:*"
-     Resource: "arn:aws:s3:::slsupload/*"
-#    - Effect: "Allow"
-#      Action:
-#        - "s3:PutObject"
+     Resource: "arn:aws:s3:::tweakImages/*"
+   - Effect: "Allow"
+     Action:
+       - "s3:PutObject"
 #      Resource:
 #        Fn::Join:
 #          - ""
@@ -60,21 +63,26 @@ provider:
 functions:
   hello:
     handler: handler.hello
-  
+    
+  auth: 
+    handler: handler.auth
   requestUploadURL:
     handler: handler.requestUploadURL
     events:
       - http:
           path: requestUploadURL
           method: post
+          authorizer: auth
           cors: true
+  authorizerFunc:
+    handler: handler.authorizerFunc
 
 resources:
   Resources:
     UploadBucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: slsupload
+        BucketName: tweakImages
         AccessControl: PublicRead
         CorsConfiguration:
           CorsRules:
@@ -87,6 +95,26 @@ resources:
             - "*"
             AllowedHeaders:
             - "*"
+  GatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: EXPIRED_TOKEN
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
+    AuthFailureGatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: UNAUTHORIZED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
 
 plugins:
   - serverless-offline
